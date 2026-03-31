@@ -175,6 +175,9 @@ else
     SERVICE_NAME="crontab-ui"
     SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
 
+    # Capture the current PATH so systemd can find node/npm/crontab-ui (e.g. nvm)
+    INSTALL_PATH="$PATH"
+
     sudo tee "$SERVICE_FILE" > /dev/null << SERVICE
 [Unit]
 Description=crontab-ui with auth proxy
@@ -183,6 +186,7 @@ After=network.target
 [Service]
 Type=oneshot
 RemainAfterExit=yes
+Environment=PATH=${INSTALL_PATH}
 ExecStart=${SCRIPT_DIR}/start.sh
 ExecStop=${SCRIPT_DIR}/stop.sh
 WorkingDirectory=${SCRIPT_DIR}

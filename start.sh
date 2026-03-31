@@ -63,14 +63,24 @@ kill_port "$PROXY_PORT"
 echo "Starting crontab-ui on 127.0.0.1:$BACKEND_PORT..."
 sudo bash -c "env PATH=\"$PATH\" HOST=127.0.0.1 PORT=$BACKEND_PORT nohup crontab-ui > \"$BACKEND_LOG\" 2>&1 & echo \$! > \"$BACKEND_PID_FILE\""
 
-sleep 2
-BACKEND_PID=$(cat "$BACKEND_PID_FILE" 2>/dev/null || echo "")
-if [[ -z "$BACKEND_PID" ]] || ! sudo kill -0 "$BACKEND_PID" 2>/dev/null; then
-    echo "Failed to start crontab-ui. Check $BACKEND_LOG"
-    rm -f "$BACKEND_PID_FILE"
-    exit 1
-fi
-echo "  crontab-ui running (PID $BACKEND_PID)"
+# Wait for crontab-ui to be ready (up to 30 seconds)
+echo "  Waiting for crontab-ui to be ready..."
+for i in $(seq 1 30); do
+    BACKEND_PID=$(cat "$BACKEND_PID_FILE" 2>/dev/null || echo "")
+    if [[ -n "$BACKEND_PID" ]] && sudo kill -0 "$BACKEND_PID" 2>/dev/null; then
+        # Process is alive — check if port is listening
+        if sudo lsof -ti :"$BACKEND_PORT" >/dev/null 2>&1; then
+            echo "  crontab-ui running (PID $BACKEND_PID)"
+            break
+        fi
+    fi
+    if [[ "$i" -eq 30 ]]; then
+        echo "Failed to start crontab-ui after 30s. Check $BACKEND_LOG"
+        rm -f "$BACKEND_PID_FILE"
+        exit 1
+    fi
+    sleep 1
+done
 
 # Start auth proxy
 echo "Starting auth proxy on 0.0.0.0:$PROXY_PORT..."
@@ -81,13 +91,23 @@ BACKEND_URL="http://127.0.0.1:$BACKEND_PORT" \
 nohup node "$SCRIPT_DIR/auth-proxy.js" > "$PROXY_LOG" 2>&1 &
 echo $! > "$PROXY_PID_FILE"
 
-sleep 1
-if ! kill -0 "$(cat "$PROXY_PID_FILE")" 2>/dev/null; then
-    echo "Failed to start auth proxy. Check $PROXY_LOG"
-    rm -f "$PROXY_PID_FILE"
-    exit 1
-fi
-echo "  auth proxy running (PID $(cat "$PROXY_PID_FILE"))"
+# Wait for auth proxy to be ready (up to 15 seconds)
+echo "  Waiting for auth proxy to be ready..."
+for i in $(seq 1 15); do
+    PROXY_PID=$(cat "$PROXY_PID_FILE" 2>/dev/null || echo "")
+    if [[ -n "$PROXY_PID" ]] && kill -0 "$PROXY_PID" 2>/dev/null; then
+        if lsof -ti :"$PROXY_PORT" >/dev/null 2>&1; then
+            echo "  auth proxy running (PID $PROXY_PID)"
+            break
+        fi
+    fi
+    if [[ "$i" -eq 15 ]]; then
+        echo "Failed to start auth proxy after 15s. Check $PROXY_LOG"
+        rm -f "$PROXY_PID_FILE"
+        exit 1
+    fi
+    sleep 1
+done
 
 echo ""
 echo "crontab-ui available at http://localhost:$PROXY_PORT (password protected)"
