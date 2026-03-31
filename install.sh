@@ -16,6 +16,7 @@ for cmd in node npm sudo; do
         exit 1
     fi
 done
+NPM_PATH="$(command -v npm)"
 echo "  node $(node -v), npm $(npm -v) ✓"
 
 # 2. Install crontab-ui globally
@@ -24,7 +25,7 @@ echo "[2/5] Installing crontab-ui..."
 if command -v crontab-ui &>/dev/null; then
     echo "  crontab-ui already installed, skipping."
 else
-    sudo npm install -g crontab-ui
+    sudo "$NPM_PATH" install -g crontab-ui
     echo "  crontab-ui installed ✓"
 fi
 
