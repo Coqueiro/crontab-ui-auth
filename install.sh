@@ -2,7 +2,6 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-CRONTAB_JS="/usr/lib/node_modules/crontab-ui/crontab.js"
 ENV_FILE="$SCRIPT_DIR/.env"
 
 echo "=== crontab-ui installer ==="
@@ -31,6 +30,15 @@ fi
 # 3. Patch cron-parser v5 compatibility
 echo ""
 echo "[3/5] Patching cron-parser v5 compatibility..."
+CRONTAB_JS="$(npm root -g)/crontab-ui/crontab.js"
+if [[ ! -f "$CRONTAB_JS" ]]; then
+    # npm root -g may differ under sudo
+    CRONTAB_JS="$(sudo env "PATH=$PATH" npm root -g)/crontab-ui/crontab.js"
+fi
+if [[ ! -f "$CRONTAB_JS" ]]; then
+    echo "  ERROR: Could not find crontab.js. Looked in $(npm root -g)/crontab-ui/"
+    exit 1
+fi
 if grep -q 'CronExpressionParser' "$CRONTAB_JS" 2>/dev/null; then
     echo "  Already patched, skipping."
 else
