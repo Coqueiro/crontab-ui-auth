@@ -9,7 +9,7 @@ crontab-ui is a useful tool but ships with no authentication and has several bug
 - **Password-protected access** — Express reverse proxy with bcrypt authentication, cookie sessions (12h), and rate-limited login
 - **Node.js v23+ compatibility** — Patches NeDB's removed `util.isDate`/`util.isArray`/`util.isRegExp` functions
 - **cron-parser v5 compatibility** — Patches deprecated `parseExpression` → `CronExpressionParser.parse`
-- **Import/export fix** — "Get from crontab" no longer creates duplicate entries from wrapped commands
+- **Import/export fix** — "Get from crontab" no longer creates duplicate entries from wrapped commands, and disables UI jobs not present in the system crontab
 - **Async race condition fix** — Database operations now complete before HTTP responses are sent
 - **Deterministic job IDs** — Jobs use `sha256(command + schedule)` as their ID, making duplicates structurally impossible
 - **Logging enabled by default** — New jobs have logging turned on automatically
@@ -88,7 +88,7 @@ launchctl list | grep crontab-ui
 
 ### Importing existing cron jobs
 
-If you already have entries in your root crontab, click **"Get from crontab"** in the UI to import them. The patched import logic correctly handles wrapped commands and avoids creating duplicates.
+If you already have entries in your root crontab, click **"Get from crontab"** in the UI to import them. The patched import logic correctly handles wrapped commands, avoids creating duplicates, and **disables (stops) any UI jobs that are not present in the system crontab**. This keeps the UI in sync with the actual crontab state.
 
 ### Saving changes
 

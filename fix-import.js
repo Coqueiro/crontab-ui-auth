@@ -25,9 +25,9 @@ if (!fs.existsSync(crontabJs)) {
 
 var content = fs.readFileSync(crontabJs, 'utf8');
 
-// Idempotency check — need unwrap_command + callback + fallback dedup
-if (content.indexOf('unwrap_command') !== -1 && content.indexOf('import_crontab = function(callback)') !== -1 && content.indexOf('fall back to command+schedule dedup') !== -1) {
-  console.log('  Already patched (with callback + fallback dedup), skipping.');
+// Idempotency check — need unwrap_command + callback + fallback dedup + disable-missing
+if (content.indexOf('unwrap_command') !== -1 && content.indexOf('import_crontab = function(callback)') !== -1 && content.indexOf('fall back to command+schedule dedup') !== -1 && content.indexOf('disable jobs not found in crontab') !== -1) {
+  console.log('  Already patched (with callback + fallback dedup + disable-missing), skipping.');
   process.exit(0);
 }
 
@@ -63,7 +63,27 @@ var newCode = [
   '		var namePrefix = new Date().getTime();',
   '		var pending = 0;',
   '		var finished = false;',
-  '		function checkDone() { if (finished && pending === 0 && callback) callback(); }',
+  '		var seenIds = {}; // track job IDs found in crontab',
+  '		function checkDone() {',
+  '			if (!finished || pending > 0) return;',
+  '			// After all crontab lines processed, disable jobs not found in crontab',
+  '			db.find({}, function(err, docs) {',
+  '				if (err || !docs) { if (callback) callback(err); return; }',
+  '				var disablePending = 0;',
+  '				docs.forEach(function(doc) {',
+  '					if (!seenIds[doc._id] && !doc.stopped) {',
+  '						disablePending++;',
+  '						db.update({ _id: doc._id }, { $set: { stopped: true, saved: false } }, {}, function() {',
+  '							disablePending--;',
+  '							if (disablePending === 0 && callback) callback();',
+  '						});',
+  '					}',
+  '				});',
+  '				if (disablePending === 0 && callback) callback();',
+  '			});',
+  '		}',
+  '',
+  '		function trackId(id) { seenIds[id] = true; }',
   '',
   '		lines.forEach(function(line, index){',
   '			line = line.replace(/\\t+/g, " ");',
@@ -84,17 +104,19 @@ var newCode = [
   '',
   '				if (jobId) {',
   '					// We know the job ID - look it up directly',
+  '					trackId(jobId);',
   '					db.findOne({ _id: jobId }, function(err, doc) {',
   '						if (err) { console.error("DB error:", err); pending--; checkDone(); return; }',
   '						if (doc) {',
-  '							// Job exists, mark as saved (it is in the crontab)',
-  '							db.update({ _id: jobId }, { $set: { saved: true } }, {}, function() { pending--; checkDone(); });',
+  '							// Job exists, mark as saved and not stopped (it is in the crontab)',
+  '							db.update({ _id: jobId }, { $set: { saved: true, stopped: false } }, {}, function() { pending--; checkDone(); });',
   '						} else {',
   '							// Job ID not in DB - fall back to command+schedule dedup',
   '							db.findOne({ command: actualCommand, schedule: schedule }, function(err2, doc2) {',
   '								if (err2) { console.error("DB error:", err2); pending--; checkDone(); return; }',
   '								if (doc2) {',
-  '									db.update({ _id: doc2._id }, { $set: { saved: true } }, {}, function() { pending--; checkDone(); });',
+  '									trackId(doc2._id);',
+  '									db.update({ _id: doc2._id }, { $set: { saved: true, stopped: false } }, {}, function() { pending--; checkDone(); });',
   '								} else {',
   '									exports.create_new(name, actualCommand, schedule, null, null, function() { pending--; checkDone(); });',
   '								}',
@@ -106,10 +128,17 @@ var newCode = [
   '					db.findOne({ command: actualCommand, schedule: schedule }, function(err, doc) {',
   '						if (err) { console.error("DB error:", err); pending--; checkDone(); return; }',
   '						if (!doc) {',
-  '							exports.create_new(name, actualCommand, schedule, null, null, function() { pending--; checkDone(); });',
+  '							exports.create_new(name, actualCommand, schedule, null, null, function(createErr) {',
+  '								// Track the deterministic ID for the newly created job',
+  '								var newId = require("crypto").createHash("sha256").update(actualCommand + "|" + schedule).digest("hex").substring(0, 16);',
+  '								trackId(newId);',
+  '								pending--; checkDone();',
+  '							});',
   '						} else {',
+  '							trackId(doc._id);',
   '							doc.command = actualCommand;',
   '							doc.schedule = schedule;',
+  '							doc.stopped = false;',
   '							exports.update(doc, function() { pending--; checkDone(); });',
   '						}',
   '					});',
