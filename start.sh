@@ -69,7 +69,7 @@ for i in $(seq 1 30); do
     BACKEND_PID=$(cat "$BACKEND_PID_FILE" 2>/dev/null || echo "")
     if [[ -n "$BACKEND_PID" ]] && sudo kill -0 "$BACKEND_PID" 2>/dev/null; then
         # Process is alive — check if port is listening
-        if sudo lsof -ti :"$BACKEND_PORT" >/dev/null 2>&1; then
+        if (echo > /dev/tcp/127.0.0.1/$BACKEND_PORT) 2>/dev/null; then
             echo "  crontab-ui running (PID $BACKEND_PID)"
             break
         fi
@@ -96,7 +96,7 @@ echo "  Waiting for auth proxy to be ready..."
 for i in $(seq 1 15); do
     PROXY_PID=$(cat "$PROXY_PID_FILE" 2>/dev/null || echo "")
     if [[ -n "$PROXY_PID" ]] && kill -0 "$PROXY_PID" 2>/dev/null; then
-        if lsof -ti :"$PROXY_PORT" >/dev/null 2>&1; then
+        if (echo > /dev/tcp/127.0.0.1/$PROXY_PORT) 2>/dev/null; then
             echo "  auth proxy running (PID $PROXY_PID)"
             break
         fi
