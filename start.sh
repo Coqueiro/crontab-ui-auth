@@ -39,7 +39,7 @@ stop_process "$PROXY_PID_FILE" "auth-proxy"
 
 # Start crontab-ui on localhost only
 echo "Starting crontab-ui on 127.0.0.1:$BACKEND_PORT..."
-sudo HOST=127.0.0.1 PORT=$BACKEND_PORT nohup crontab-ui > "$BACKEND_LOG" 2>&1 &
+sudo env "PATH=$PATH" HOST=127.0.0.1 PORT=$BACKEND_PORT nohup crontab-ui > "$BACKEND_LOG" 2>&1 &
 echo $! > "$BACKEND_PID_FILE"
 
 sleep 1
