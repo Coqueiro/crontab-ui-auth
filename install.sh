@@ -66,13 +66,13 @@ CRONTAB_UI_DIR="$(dirname "$CRONTAB_JS")"
 # 4. Fix async DB race conditions (responses before writes complete)
 echo ""
 echo "[4/9] Patching async DB operations..."
-sudo node "$SCRIPT_DIR/fix-async-db.js" "$CRONTAB_UI_DIR"
+sudo env "PATH=$PATH" node "$SCRIPT_DIR/fix-async-db.js" "$CRONTAB_UI_DIR"
 
 # 5. Patch import_crontab to unwrap wrapped commands
 echo ""
 echo "[5/9] Patching import_crontab for wrapped command unwrapping..."
 # fix-import.js is idempotent: checks for unwrap_command before patching
-sudo node "$SCRIPT_DIR/fix-import.js" "$CRONTAB_UI_DIR"
+sudo env "PATH=$PATH" node "$SCRIPT_DIR/fix-import.js" "$CRONTAB_UI_DIR"
 
 # 6. Patch NeDB for Node.js v23+ compatibility (util.isDate/isArray/isRegExp removed)
 echo ""
@@ -82,7 +82,7 @@ if [[ ! -d "$CRONTAB_UI_DIR/node_modules/nedb/lib" ]]; then
     echo "  WARNING: Could not find nedb lib directory, skipping."
 else
     # fix-nedb.js is idempotent: removes old broken patches, prepends clean IIFE polyfill
-    sudo node "$SCRIPT_DIR/fix-nedb.js" "$CRONTAB_UI_DIR"
+    sudo env "PATH=$PATH" node "$SCRIPT_DIR/fix-nedb.js" "$CRONTAB_UI_DIR"
 fi
 
 # 7. Install auth proxy dependencies
