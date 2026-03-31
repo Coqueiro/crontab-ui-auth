@@ -23,7 +23,10 @@ if (!SESSION_SECRET) {
 const app = express();
 
 app.set('trust proxy', 1);
-app.use(express.urlencoded({ extended: false }));
+
+// Only parse form body for auth routes — not globally,
+// otherwise the proxy can't forward raw request bodies
+const parseForm = express.urlencoded({ extended: false });
 
 app.use(cookieSession({
   name: 'crontab_auth',
@@ -81,7 +84,7 @@ app.get('/login', (req, res) => {
   res.type('html').send(LOGIN_HTML.replace('{{ERROR}}', ''));
 });
 
-app.post('/login', loginLimiter, async (req, res) => {
+app.post('/login', parseForm, loginLimiter, async (req, res) => {
   const ok = await bcrypt.compare(req.body.password || '', PASSWORD_HASH);
   if (!ok) {
     return res.status(401).type('html').send(
